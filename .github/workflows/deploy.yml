@@ -65,8 +65,8 @@ jobs:
 
         terraform apply -auto-approve -target=azurerm_resource_group.gitgame -target=azurerm_container_registry.gitgame -target=random_string.suffix
 
-    # 🐳 PASSO 7: Build das imagens
-    - name: � Build and Push Images
+        # 🐳 PASSO 7: Build das imagens
+    - name: 🐳 Build and Push Images
       run: |
         # Configurar Terraform
         export ARM_CLIENT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}"
@@ -81,7 +81,7 @@ jobs:
         RANDOM_SUFFIX=$(cd terraform && terraform output -raw random_suffix)
         
         # Login no registry
-        echo $ACR_PASSWORD | docker login $ACR_SERVER -u $ACR_USERNAME --password-stdin
+        echo $ACR_PASSWORD | docker login -u $ACR_USERNAME --password-stdin $ACR_SERVER
         
         # Build e push das imagens
         docker build -t $ACR_SERVER/gitgame-db:latest ./db
