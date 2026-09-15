@@ -65,7 +65,7 @@ jobs:
 
         terraform apply -auto-approve -target=azurerm_resource_group.gitgame -target=azurerm_container_registry.gitgame -target=random_string.suffix
 
-        # 🐳 PASSO 7: Build das imagens
+    # 🐳 PASSO 7: Build das imagens
     - name: 🐳 Build and Push Images
       run: |
         # Configurar Terraform
@@ -75,10 +75,26 @@ jobs:
         export ARM_SUBSCRIPTION_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}"
         
         # Buscar info do registry
-        ACR_SERVER=$(cd terraform && terraform output -raw acr_login_server)
-        ACR_USERNAME=$(cd terraform && terraform output -raw acr_admin_username)
-        ACR_PASSWORD=$(cd terraform && terraform output -raw acr_admin_password)
-        RANDOM_SUFFIX=$(cd terraform && terraform output -raw random_suffix)
+        cd terraform
+        
+        echo "🔍 Debugging Terraform outputs..."
+        terraform output
+        
+        ACR_SERVER=$(terraform output -raw acr_login_server)
+        ACR_USERNAME=$(terraform output -raw acr_admin_username)
+        ACR_PASSWORD=$(terraform output -raw acr_admin_password)
+        RANDOM_SUFFIX=$(terraform output -raw random_suffix)
+        
+        # Validar que as variáveis foram definidas
+        if [ -z "$ACR_SERVER" ] || [ -z "$ACR_USERNAME" ] || [ -z "$ACR_PASSWORD" ]; then
+          echo "❌ Error: Missing Terraform outputs!"
+          echo "ACR_SERVER: $ACR_SERVER"
+          echo "ACR_USERNAME: $ACR_USERNAME"
+          echo "RANDOM_SUFFIX: $RANDOM_SUFFIX"
+          exit 1
+        fi
+        
+        cd ..
         
         # Login no registry
         echo $ACR_PASSWORD | docker login -u $ACR_USERNAME --password-stdin $ACR_SERVER
