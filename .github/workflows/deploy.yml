@@ -74,43 +74,31 @@ jobs:
         export ARM_TENANT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}"
         export ARM_SUBSCRIPTION_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}"
         
-        # Buscar info do registry
+        # Buscar info do registry (strip quotes from output)
         cd terraform
         
-        echo "🔍 Debugging Terraform outputs..."
-        terraform output
-        
-        ACR_SERVER=$(terraform output -raw acr_login_server)
-        ACR_USERNAME=$(terraform output -raw acr_admin_username)
-        ACR_PASSWORD=$(terraform output -raw acr_admin_password)
-        RANDOM_SUFFIX=$(terraform output -raw random_suffix)
-        
-        # Validar que as variáveis foram definidas
-        if [ -z "$ACR_SERVER" ] || [ -z "$ACR_USERNAME" ] || [ -z "$ACR_PASSWORD" ]; then
-          echo "❌ Error: Missing Terraform outputs!"
-          echo "ACR_SERVER: $ACR_SERVER"
-          echo "ACR_USERNAME: $ACR_USERNAME"
-          echo "RANDOM_SUFFIX: $RANDOM_SUFFIX"
-          exit 1
-        fi
+        ACR_SERVER=$(terraform output acr_login_server | tr -d '"')
+        ACR_USERNAME=$(terraform output acr_admin_username | tr -d '"')
+        ACR_PASSWORD=$(terraform output acr_admin_password | tr -d '"')
+        RANDOM_SUFFIX=$(terraform output random_suffix | tr -d '"')
         
         cd ..
         
         # Login no registry
-        echo $ACR_PASSWORD | docker login -u $ACR_USERNAME --password-stdin $ACR_SERVER
+        echo "$ACR_PASSWORD" | docker login -u "$ACR_USERNAME" --password-stdin "$ACR_SERVER"
         
         # Build e push das imagens
-        docker build -t $ACR_SERVER/gitgame-db:latest ./db
-        docker push $ACR_SERVER/gitgame-db:latest
+        docker build -t "$ACR_SERVER/gitgame-db:latest" ./db
+        docker push "$ACR_SERVER/gitgame-db:latest"
         
-        docker build -t $ACR_SERVER/gitgame-backend:latest ./backend
-        docker push $ACR_SERVER/gitgame-backend:latest
+        docker build -t "$ACR_SERVER/gitgame-backend:latest" ./backend
+        docker push "$ACR_SERVER/gitgame-backend:latest"
         
         # Frontend com URL da API
         docker build \
           --build-arg VITE_API_URL="http://gitgame-${RANDOM_SUFFIX}.eastus.azurecontainer.io:8000" \
-          -t $ACR_SERVER/gitgame-frontend:latest ./frontend
-        docker push $ACR_SERVER/gitgame-frontend:latest
+          -t "$ACR_SERVER/gitgame-frontend:latest" ./frontend
+        docker push "$ACR_SERVER/gitgame-frontend:latest"
 
     # 🚀 PASSO 8: Deploy dos containers
     - name: 🏗️ Deploy Containers
