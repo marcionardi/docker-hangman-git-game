@@ -1,38 +1,47 @@
+# 🚀 PIPELINE CI/CD - Deploy Automático no Azure
+# 
+# � COMO USAR:
+# 1. Faça mudanças no código e commit
+# 2. Push para a branch 'main' 
+# 3. A pipeline roda automaticamente
+#
+# Ou execute manualmente via "Actions" → "Run workflow"
+
 name: 🚀 Deploy Git Game to Azure
 
-# Quando o workflow será executado
+# 🎯 QUANDO EXECUTAR
 on:
   push:
-    branches: [ main ] # a cada vez que houver um push na branch main, o workflow será executado
-  workflow_dispatch:
+    branches: [ main ]  # A cada push na branch main
+  workflow_dispatch:     # Ou manualmente via interface do GitHub
 
-# Variáveis globais do workflow
+# 🌍 VARIÁVEIS GLOBAIS
 env:
-  REGISTRY_NAME: gitgame    
-
-# Jobs do workflow
+  REGISTRY_NAME: gitgame
+  
+# 💼 JOBS
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
     steps:
-    # PASSO 1: Checkout do código  
-    - name: Checkout code
+    # 🏁 PASSO 1: Baixar código do repositório
+    - name: 📥 Checkout code
       uses: actions/checkout@v4
-    
-    # PASSO 2: Login no Azure
-    - name: Login to Azure
-      uses: azure/login@v1
+      
+    # 🏁 PASSO 2: Autenticar no Azure
+    - name: 🔑 Azure Login
+      uses: azure/login@v1.4
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-    # PASSO 3: Instalar o Terraform
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+        
+    # 🏁 PASSO 3: Instalar Terraform
+    - name: 🏗️ Setup Terraform
+      uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.0
-     
-    # PASSO 4: Inicializar e preparar o Terraform
+        
+    # 🏁 PASSO 4: Preparar Terraform
     - name: 🔧 Terraform Init
       run: |
         cd terraform
@@ -42,31 +51,31 @@ jobs:
         export ARM_SUBSCRIPTION_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}"
         
         terraform init
-
-    # PASSO 5: Planejar a Infraestrutura com Terraform
-    - name: Terraform Plan
-      run:  |
+        
+    # 🏁 PASSO 5: Planejar infraestrutura básica
+    - name: 📋 Terraform Plan
+      run: |
         cd terraform
         export ARM_CLIENT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}"
         export ARM_CLIENT_SECRET="${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}"
         export ARM_TENANT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}"
         export ARM_SUBSCRIPTION_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}"
-
+        
         terraform plan -target=azurerm_resource_group.gitgame -target=azurerm_container_registry.gitgame -target=random_string.suffix
-
-    # PASSO 6: Aplicar a Infraestrutura básica
-    - name: Terraform Apply
-      run:  |
+        
+    # 🏁 PASSO 6: Criar infraestrutura básica
+    - name: 🚀 Create Infrastructure
+      run: |
         cd terraform
         export ARM_CLIENT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}"
         export ARM_CLIENT_SECRET="${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}"
         export ARM_TENANT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}"
         export ARM_SUBSCRIPTION_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}"
-
+        
         terraform apply -auto-approve -target=azurerm_resource_group.gitgame -target=azurerm_container_registry.gitgame -target=random_string.suffix
-
+        
     # 🐳 PASSO 7: Build das imagens
-    - name: 🐳 Build and Push Images
+    - name: � Build and Push Images
       run: |
         # Configurar Terraform
         export ARM_CLIENT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}"
@@ -74,32 +83,28 @@ jobs:
         export ARM_TENANT_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}"
         export ARM_SUBSCRIPTION_ID="${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}"
         
-        # Buscar info do registry (strip quotes from output)
-        cd terraform
-        
-        ACR_SERVER=$(terraform output acr_login_server | tr -d '"')
-        ACR_USERNAME=$(terraform output acr_admin_username | tr -d '"')
-        ACR_PASSWORD=$(terraform output acr_admin_password | tr -d '"')
-        RANDOM_SUFFIX=$(terraform output random_suffix | tr -d '"')
-        
-        cd ..
+        # Buscar info do registry
+        ACR_SERVER=$(cd terraform && terraform output -raw acr_login_server)
+        ACR_USERNAME=$(cd terraform && terraform output -raw acr_admin_username)
+        ACR_PASSWORD=$(cd terraform && terraform output -raw acr_admin_password)
+        RANDOM_SUFFIX=$(cd terraform && terraform output -raw random_suffix)
         
         # Login no registry
-        echo "$ACR_PASSWORD" | docker login -u "$ACR_USERNAME" --password-stdin "$ACR_SERVER"
+        echo $ACR_PASSWORD | docker login $ACR_SERVER -u $ACR_USERNAME --password-stdin
         
         # Build e push das imagens
-        docker build -t "$ACR_SERVER/gitgame-db:latest" ./db
-        docker push "$ACR_SERVER/gitgame-db:latest"
+        docker build -t $ACR_SERVER/gitgame-db:latest ./db
+        docker push $ACR_SERVER/gitgame-db:latest
         
-        docker build -t "$ACR_SERVER/gitgame-backend:latest" ./backend
-        docker push "$ACR_SERVER/gitgame-backend:latest"
+        docker build -t $ACR_SERVER/gitgame-backend:latest ./backend
+        docker push $ACR_SERVER/gitgame-backend:latest
         
         # Frontend com URL da API
         docker build \
           --build-arg VITE_API_URL="http://gitgame-${RANDOM_SUFFIX}.eastus.azurecontainer.io:8000" \
-          -t "$ACR_SERVER/gitgame-frontend:latest" ./frontend
-        docker push "$ACR_SERVER/gitgame-frontend:latest"
-
+          -t $ACR_SERVER/gitgame-frontend:latest ./frontend
+        docker push $ACR_SERVER/gitgame-frontend:latest
+        
     # 🚀 PASSO 8: Deploy dos containers
     - name: 🏗️ Deploy Containers
       run: |
@@ -129,4 +134,4 @@ jobs:
         echo "🌐 Frontend: $(terraform output -raw application_url)"
         echo "🔗 API: $(terraform output -raw api_url)"
         echo ""
-        echo "🎉 Deploy concluído! Aguarde 2-3 minutos para ficar disponível."        
+        echo "🎉 Deploy concluído! Aguarde 2-3 minutos para ficar disponível."
